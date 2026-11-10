@@ -62,7 +62,7 @@ def mix(c1, c2, u):
 # expression presets ---------------------------------------------------------
 def E(**kw):
     base = dict(smile=0.35, brow=0.0, eye=1.0, mouth=0.0, tear=0.0,
-                lx=0.0, ly=0.0, happy=0.0, blush=0.25)
+                lx=0.0, ly=0.0, happy=0.0, blush=0.25, sleep=0.0)
     base.update(kw)
     return base
 
@@ -149,7 +149,9 @@ def draw_face(p, cx, cy, R, e, t, seed, skin, lashes=False):
     cl = blink(t, seed)
     for s in (-1, 1):
         x, y = cx + s * ex + ox, ey + oy
-        if e["happy"] > 0.5:
+        if e.get("sleep", 0) > 0.5:
+            p.arc(x, y - eh * 0.4, ew * 1.3, eh * 0.9, 20, 160, OL, R * 0.055)
+        elif e["happy"] > 0.5:
             # closed, smiling eyes  ^ ^
             p.arc(x, y + eh * 0.5, ew * 1.4, eh * 1.0, 200, 340, OL, R * 0.06)
         else:
@@ -236,11 +238,13 @@ def draw_person(p, st, t):
     ph = t * 9.0
     bounce = st.get("bounce", 0.0) + abs(math.sin(ph)) * 4 * walk
     leg_len = (52 - 22 * sit) * sc
-    seat_y = 560
-    hip_y = lerp(GROUND - leg_len, seat_y, sit) - bounce
+    seat_y = st.get("seat", 560)
+    gnd = st.get("ground", GROUND)
+    hip_y = lerp(gnd - leg_len, seat_y, sit) - bounce + st.get("drop", 0.0)
     skin = (255, 214, 180)
     shw = 40 * sc * (1 - 0.35 * clamp(bounce / 25))
-    p.ellipse(x, GROUND + 4, shw, 7 * sc, fill=st.get("shadow", (210, 188, 150)))
+    if st.get("shadow") is not False:
+        p.ellipse(x, gnd + 4, shw, 7 * sc, fill=st.get("shadow", (210, 188, 150)))
     # legs
     for s in (-1, 1):
         sw = math.sin(ph + (0 if s < 0 else math.pi)) * 16 * walk * sc
@@ -318,9 +322,11 @@ def draw_kitten(p, st, t):
     walk = st.get("walk", 0.0)
     ph = t * 10
     bob = abs(math.sin(ph)) * 3 * walk + st.get("bounce", 0.0)
-    fur = (245, 160, 70)
-    by = GROUND - 26 - bob
-    p.ellipse(x + 5, GROUND + 2, 40, 6, fill=st.get("shadow", (210, 188, 150)))
+    fur = mix((245, 160, 70), (175, 110, 60), st.get("wet", 0.0))
+    gnd = st.get("ground", GROUND)
+    by = gnd - 26 - bob
+    if st.get("shadow") is not False:
+        p.ellipse(x + 5, gnd + 2, 40, 6, fill=st.get("shadow", (210, 188, 150)))
     # tail
     sw = math.sin(t * 3.0) * 14 * st.get("tail", 1.0)
     p.line([(x + 26, by), (x + 46, by - 18), (x + 50 + sw, by - 46)], OL, 13)
@@ -328,9 +334,16 @@ def draw_kitten(p, st, t):
     # legs
     for i, dx in enumerate((-18, -6, 8, 20)):
         lsw = math.sin(ph + i * math.pi) * 5 * walk
-        p.ellipse(x + dx + lsw, GROUND - 6, 7, 6, fill=fur, outline=OL, width=2)
+        p.ellipse(x + dx + lsw, gnd - 6, 7, 6, fill=fur, outline=OL, width=2)
     p.ellipse(x, by, 34, 22, fill=fur, outline=OL, width=3)
-    p.ellipse(x, by + 6, 18, 12, fill=(255, 225, 190))
+    p.ellipse(x, by + 6, 18, 12, fill=mix((255, 225, 190), fur, st.get("wet", 0.0) * 0.5))
+    wr = st.get("wrap", 0.0)
+    if wr > 0.02:
+        rx, ry = 40 * ease(wr), 27 * ease(wr)
+        p.ellipse(x, by - 2, rx, ry, fill=(185, 40, 55), outline=OL, width=3)
+        for k in (-1, 0, 1):
+            p.line([(x + k * rx * 0.45, by - ry * 0.85), (x + k * rx * 0.45, by + ry * 0.85)], (235, 200, 120), 2.5)
+        p.line([(x - rx * 0.9, by), (x + rx * 0.9, by)], (235, 200, 120), 2.5)
     # head
     R = 30
     hx, hy = x - 6 + st["e"]["lx"] * 2, by - 36 + st.get("nod", 0.0) * 4
