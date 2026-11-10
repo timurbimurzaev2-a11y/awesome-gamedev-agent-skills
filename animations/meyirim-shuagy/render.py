@@ -134,7 +134,7 @@ def heart(p, x, y, r, col):
     p.poly([(x - r * 1.02, y - 0.05 * r), (x + r * 1.02, y - 0.05 * r), (x, y + r * 1.05)], fill=col)
 
 
-def draw_face(p, cx, cy, R, e, t, seed, skin):
+def draw_face(p, cx, cy, R, e, t, seed, skin, lashes=False):
     """Cartoon face. R = head radius. e = expression dict."""
     ex, ey = R * 0.38, cy - R * 0.05
     ew, eh = R * 0.12, R * 0.17
@@ -157,9 +157,22 @@ def draw_face(p, cx, cy, R, e, t, seed, skin):
             if hgt < eh * 0.18:
                 p.line([(x - ew, y), (x + ew, y)], OL, R * 0.05)
             else:
-                p.ellipse(x, y, ew * (1 + 0.1 * (e["eye"] - 1)), hgt, fill=(40, 28, 30))
-                p.ellipse(x - ew * 0.35 + lx * ew * 0.3, y - hgt * 0.4, ew * 0.38, ew * 0.38,
+                ewx = ew * (1 + 0.1 * (e["eye"] - 1))
+                p.ellipse(x, y, ewx, hgt, fill=(35, 24, 28))
+                if hgt > eh * 0.5:
+                    # coloured iris glow in the lower half
+                    p.ellipse(x + lx * ew * 0.15, y + hgt * 0.35, ewx * 0.7, hgt * 0.45, fill=(120, 70, 50))
+                    p.ellipse(x + lx * ew * 0.15, y + hgt * 0.42, ewx * 0.45, hgt * 0.25, fill=(165, 105, 70))
+                p.ellipse(x - ew * 0.3 + lx * ew * 0.3, y - hgt * 0.38, ew * 0.42, min(ew * 0.42, hgt * 0.5),
                           fill=(255, 255, 255))
+                if hgt > eh * 0.5:
+                    p.ellipse(x + ew * 0.38 + lx * ew * 0.2, y + hgt * 0.35, ew * 0.18, ew * 0.18,
+                              fill=(255, 255, 255))
+                if lashes:
+                    for k in (0, 1):
+                        bx0 = x + s * ewx * (0.6 + 0.25 * k)
+                        by0 = y - hgt * (0.75 - 0.3 * k)
+                        p.line([(bx0, by0), (bx0 + s * R * 0.09, by0 - R * 0.07)], OL, R * 0.035)
     # brows
     b = e["brow"]
     by = ey - eh - R * 0.1 - max(b, 0) * R * 0.12 + oy
@@ -226,6 +239,8 @@ def draw_person(p, st, t):
     seat_y = 560
     hip_y = lerp(GROUND - leg_len, seat_y, sit) - bounce
     skin = (255, 214, 180)
+    shw = 40 * sc * (1 - 0.35 * clamp(bounce / 25))
+    p.ellipse(x, GROUND + 4, shw, 7 * sc, fill=st.get("shadow", (210, 188, 150)))
     # legs
     for s in (-1, 1):
         sw = math.sin(ph + (0 if s < 0 else math.pi)) * 16 * walk * sc
@@ -292,7 +307,9 @@ def draw_person(p, st, t):
         # ears
         for s in (-1, 1):
             p.ellipse(hcx + s * R * 0.98, hcy + R * 0.08, R * 0.13, R * 0.18, fill=skin, outline=OL, width=2)
-    draw_face(p, hcx, hcy, R, st["e"], t, st.get("seed", 1), skin)
+    # hair shine
+    p.arc(hcx - R * 0.1, hcy - R * 0.1, R * 0.75, R * 0.75, 215, 265, mix(hair, (255, 255, 255), 0.35), R * 0.07)
+    draw_face(p, hcx, hcy, R, st["e"], t, st.get("seed", 1), skin, lashes=(kind == "girl"))
     return hands, (hcx, hcy)
 
 
@@ -303,6 +320,7 @@ def draw_kitten(p, st, t):
     bob = abs(math.sin(ph)) * 3 * walk + st.get("bounce", 0.0)
     fur = (245, 160, 70)
     by = GROUND - 26 - bob
+    p.ellipse(x + 5, GROUND + 2, 40, 6, fill=st.get("shadow", (210, 188, 150)))
     # tail
     sw = math.sin(t * 3.0) * 14 * st.get("tail", 1.0)
     p.line([(x + 26, by), (x + 46, by - 18), (x + 50 + sw, by - 46)], OL, 13)
@@ -376,6 +394,21 @@ def draw_flower(p, x, y, g, col, t):
         p.ellipse(cx, cy, 5 * pg, 5 * pg, fill=(255, 220, 80))
 
 
+def draw_butterfly(p, x, y, t, col, s=1.0):
+    f = abs(math.sin(t * 14)) * 0.8 + 0.2
+    for side in (-1, 1):
+        p.ellipse(x + side * 9 * s * f, y - 5 * s, 9 * s * f, 8 * s, fill=col)
+        p.ellipse(x + side * 7 * s * f, y + 6 * s, 6 * s * f, 6 * s, fill=mix(col, (255, 255, 255), 0.35))
+    p.line([(x, y - 8 * s), (x, y + 9 * s)], OL, 2.5 * s)
+    p.line([(x, y - 8 * s), (x - 5 * s, y - 15 * s)], OL, 1.2 * s)
+    p.line([(x, y - 8 * s), (x + 5 * s, y - 15 * s)], OL, 1.2 * s)
+
+
+def sparkle(p, x, y, r, col):
+    p.poly([(x, y - r), (x + r * 0.22, y - r * 0.22), (x + r, y), (x + r * 0.22, y + r * 0.22),
+            (x, y + r), (x - r * 0.22, y + r * 0.22), (x - r, y), (x - r * 0.22, y - r * 0.22)], fill=col)
+
+
 def draw_bird(p, x, y, t, s=1.0):
     f = math.sin(t * 12) * 8 * s
     p.line([(x - 14 * s, y - f), (x, y), (x + 14 * s, y - f)], (70, 60, 80), 3)
@@ -383,47 +416,85 @@ def draw_bird(p, x, y, t, s=1.0):
 
 # ------------------------------------------------------------- background
 def make_background(dim, rainbow=False):
-    top = mix((110, 190, 255), (120, 135, 160), dim)
-    bot = mix((210, 240, 255), (175, 185, 200), dim)
-    arr = np.zeros((H * SS, W * SS, 3), np.uint8)
-    for c in range(3):
-        col = np.linspace(top[c], bot[c], H * SS).astype(np.uint8)
-        arr[:, :, c] = col[:, None]
-    img = Image.fromarray(arr)
+    # three-stop sky with a warm glow around the sun
+    yy = np.linspace(0, 1, H * SS)[:, None, None]
+    xx = np.linspace(0, W, W * SS)[None, :, None]
+    top = np.array(mix((70, 150, 245), (110, 125, 155), dim), float)
+    midc = np.array(mix((140, 205, 255), (150, 160, 180), dim), float)
+    bot = np.array(mix((255, 236, 210), (190, 190, 200), dim), float)
+    sky = np.where(yy < 0.5, top + (midc - top) * (yy / 0.5), midc + (bot - midc) * ((yy - 0.5) / 0.5))
+    d2 = ((xx - 1085) ** 2 + (yy * H - 120) ** 2) ** 0.5
+    glow = np.exp(-d2 / 260.0) * (1 - dim) * 0.85
+    sky = sky + (np.array([255, 245, 200]) - sky) * glow
+    img = Image.fromarray(np.clip(sky, 0, 255).astype(np.uint8))
     if rainbow:
         rb = make_rainbow()
         img.paste(rb.convert("RGB"), (0, 0), rb.getchannel("A"))
     p = Pen(img)
-    g = lambda c: mix(c, (110, 125, 120), dim * 0.8)
-    # far hills
-    p.ellipse(250, 640, 520, 190, fill=g((150, 210, 130)))
-    p.ellipse(1050, 660, 600, 220, fill=g((135, 200, 120)))
-    # trees
-    for tx, ty, s in ((140, 470, 1.0), (330, 500, 0.75), (1210, 480, 0.95), (640, 515, 0.6)):
-        p.poly([(tx - 10 * s, ty + 60 * s), (tx + 10 * s, ty + 60 * s), (tx + 8 * s, ty - 10 * s), (tx - 8 * s, ty - 10 * s)],
-               fill=g((140, 95, 60)))
-        for dx, dy, r in ((0, -40, 50), (-35, -15, 38), (35, -15, 38), (0, -70, 36)):
-            p.ellipse(tx + dx * s, ty + dy * s, r * s, r * s, fill=g((80, 165, 85)))
-    # ground
-    p.poly([(0, 585), (W, 575), (W, H), (0, H)], fill=g((120, 200, 100)))
-    p.poly([(0, 600), (W, 590), (W, H), (0, H)], fill=g((110, 190, 95)))
-    # path
-    p.poly([(0, 625), (W, 620), (W, 668), (0, 675)], fill=g((235, 215, 170)))
-    # grass tufts
+    g = lambda c: mix(c, (110, 125, 120), dim * 0.75)
+    # distant blue mountains
+    for mx, mh, mw in ((80, 250, 260), (380, 200, 230), (700, 270, 300), (1000, 210, 240), (1260, 240, 260)):
+        pk = (mx, 600 - mh)
+        p.poly([(mx - mw, 600), pk, (mx + mw, 600)], fill=g((165, 195, 225)))
+        p.poly([pk, (mx + mw, 600), (mx + mw * 0.2, 600)], fill=g((145, 175, 210)))
+        f = 0.24
+        lft = (mx - mw * f, 600 - mh * (1 - f))
+        rgt = (mx + mw * f, 600 - mh * (1 - f))
+        p.poly([pk, rgt, (mx + mw * f * 0.45, rgt[1] - mh * 0.05), (mx + mw * f * 0.1, rgt[1] + mh * 0.03),
+                (mx - mw * f * 0.35, rgt[1] - mh * 0.04), lft], fill=g((248, 251, 255)))
+    # rolling hills with volume (dark base + lighter crown)
+    for hx, hy, rx, ry, c in ((250, 650, 540, 200, (120, 190, 110)), (1060, 670, 620, 230, (105, 180, 100)),
+                              (640, 700, 480, 170, (130, 200, 115))):
+        p.ellipse(hx, hy, rx, ry, fill=g(c))
+        p.ellipse(hx - rx * 0.06, hy - ry * 0.03, rx * 0.9, ry * 0.92, fill=g(mix(c, (200, 240, 150), 0.25)))
+    # trees: trunk, dark canopy, lit canopy, highlights
+    for tx, ty, s in ((140, 470, 1.0), (330, 500, 0.75), (1210, 480, 0.95), (640, 515, 0.6), (470, 520, 0.5)):
+        p.ellipse(tx, ty + 62 * s, 46 * s, 9 * s, fill=g((95, 160, 85)))
+        p.poly([(tx - 11 * s, ty + 62 * s), (tx + 11 * s, ty + 62 * s), (tx + 7 * s, ty - 10 * s),
+                (tx - 7 * s, ty - 10 * s)], fill=g((125, 85, 55)))
+        for dx, dy, r in ((0, -40, 52), (-37, -15, 40), (37, -15, 40), (0, -72, 38)):
+            p.ellipse(tx + dx * s, ty + dy * s, r * s, r * s, fill=g((55, 135, 75)))
+        for dx, dy, r in ((-6, -46, 44), (-40, -20, 31), (30, -22, 31), (-5, -78, 30)):
+            p.ellipse(tx + dx * s, ty + dy * s, r * s, r * s, fill=g((85, 175, 90)))
+        for dx, dy, r in ((-16, -62, 14), (-46, -28, 10), (14, -40, 9)):
+            p.ellipse(tx + dx * s, ty + dy * s, r * s, r * s, fill=g((150, 215, 120)))
+        for k in range(3):
+            p.ellipse(tx + (k - 1) * 22 * s, ty - (30 + k * 18) * s, 4.5 * s, 4.5 * s, fill=g((235, 80, 90)))
+    # meadow
+    p.poly([(0, 585), (W, 575), (W, H), (0, H)], fill=g((115, 195, 95)))
+    p.poly([(0, 600), (W, 590), (W, H), (0, H)], fill=g((100, 182, 88)))
+    p.poly([(0, 690), (W, 685), (W, H), (0, H)], fill=g((88, 168, 80)))
+    # path with soft edges and pebbles
+    p.poly([(0, 621), (W, 616), (W, 672), (0, 679)], fill=g((215, 190, 145)))
+    p.poly([(0, 625), (W, 620), (W, 668), (0, 675)], fill=g((240, 222, 180)))
     rnd = random.Random(3)
-    for _ in range(60):
-        gx, gy = rnd.uniform(0, W), rnd.choice([rnd.uniform(600, 618), rnd.uniform(680, 715)])
-        p.line([(gx - 4, gy), (gx, gy - 9), (gx + 4, gy)], g((80, 160, 70)), 2)
-    # bush on the right (kitten hides behind it - drawn again in foreground)
-    # bench
+    for _ in range(40):
+        px, py = rnd.uniform(0, W), rnd.uniform(630, 668)
+        p.ellipse(px, py, rnd.uniform(2, 4), rnd.uniform(1.2, 2.2), fill=g((210, 188, 150)))
+    # tiny meadow flowers far away
+    for _ in range(70):
+        fx, fy = rnd.uniform(0, W), rnd.uniform(588, 612)
+        p.ellipse(fx, fy, 2, 2, fill=g(rnd.choice([(255, 255, 255), (255, 210, 90), (255, 150, 190)])))
+    # grass tufts
+    for _ in range(110):
+        gx, gy = rnd.uniform(0, W), rnd.choice([rnd.uniform(598, 618), rnd.uniform(680, 718)])
+        c = rnd.choice([(70, 150, 65), (95, 175, 80), (130, 200, 100)])
+        p.line([(gx - 5, gy), (gx - 1, gy - 11)], g(c), 2)
+        p.line([(gx, gy), (gx + 1, gy - 14)], g(c), 2)
+        p.line([(gx + 5, gy), (gx + 3, gy - 10)], g(c), 2)
+    # bench with shading
     bx = 900
-    wood = g((175, 110, 65))
+    wood = g((185, 118, 68))
+    woodl = g((215, 150, 95))
+    p.ellipse(bx, 642, 135, 10, fill=g((205, 182, 140)))
+    for s in (-1, 1):
+        p.line([(bx + s * 95, 498), (bx + s * 95, 640)], g((80, 72, 80)), 9)
     for dy in (-62, -44):
         p.poly([(bx - 115, 560 + dy), (bx + 115, 560 + dy), (bx + 115, 560 + dy + 13), (bx - 115, 560 + dy + 13)],
                fill=wood, outline=OL, width=2)
-    for s in (-1, 1):
-        p.line([(bx + s * 95, 498), (bx + s * 95, 640)], g((90, 80, 85)), 8)
+        p.line([(bx - 110, 563 + dy), (bx + 110, 563 + dy)], woodl, 3)
     p.poly([(bx - 120, 556), (bx + 120, 556), (bx + 120, 572), (bx - 120, 572)], fill=wood, outline=OL, width=2)
+    p.line([(bx - 114, 560), (bx + 114, 560)], woodl, 3)
     return img
 
 
@@ -518,6 +589,36 @@ def hearts_burst(p, t, t0, t1, ox, oy, n, seed):
             rnd.uniform(-60, 60), rnd.uniform(8, 15)
 
 
+_GRID = None
+
+
+def grade(frame, t, dim, sx, sy, z):
+    global _GRID
+    if _GRID is None:
+        yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+        r = np.sqrt(((xx - W / 2) / (W / 2)) ** 2 + ((yy - H / 2) / (H / 2)) ** 2)
+        _GRID = (xx, yy, (1 - 0.28 * np.clip(r - 0.45, 0, 1) ** 1.6)[..., None])
+    xx, yy, vig = _GRID
+    a = np.asarray(frame).astype(np.float32)
+    # warm light from the sun, with slowly turning soft rays
+    sun = 1 - dim
+    if sun > 0.02:
+        dx, dy = xx - sx, yy - sy
+        d = np.sqrt(dx * dx + dy * dy) / (z ** 0.5)
+        ang = np.arctan2(dy, dx)
+        rays = 0.55 + 0.45 * np.sin(ang * 9 + t * 0.4)
+        light = np.exp(-d / 420.0) * (0.22 + 0.16 * rays) * sun
+        a += (np.array([255, 235, 180], np.float32) - a) * light[..., None]
+    # colour grade: cool & desaturated when sad, warm & rich when happy
+    lum = a.mean(axis=2, keepdims=True)
+    sat = 1.12 - 0.45 * dim
+    a = lum + (a - lum) * sat
+    warm = np.array([1.0 + 0.04 * sun, 1.0 + 0.01 * sun, 1.0 - 0.04 * sun + 0.05 * dim], np.float32)
+    a *= warm
+    a *= vig
+    return Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
+
+
 def render(i):
     t = i / FPS
     dim = track(t, DIM)
@@ -560,9 +661,19 @@ def render(i):
     if 61.5 < t < 64.5:
         boy["armR"] = 55 + math.sin(t * 9) * 8
 
+    # butterflies arrive with the flowers
+    for k, col in enumerate(((255, 140, 200), (120, 190, 255), (255, 200, 80))):
+        bt = t - 48 - k * 1.3
+        if bt > 0:
+            bx = -40 + bt * 55 + k * 120 + math.sin(bt * 1.3 + k) * 60
+            by = 470 + k * 35 + math.sin(bt * 2.1 + k * 2) * 40
+            if bx < W + 40:
+                draw_butterfly(p, bx, by, t + k, col, 1.0)
+    shadow = mix((205, 182, 140), (150, 150, 140), dim * 0.75)
+    hero["shadow"] = boy["shadow"] = shadow
     hero_hands, hero_head = draw_person(p, hero, t)
     boy_hands, boy_head = draw_person(p, boy, t)
-    kit = dict(x=track(t, KIT_X), e=track(t, KIT_E), walk=track(t, KIT_WALK), seed=7)
+    kit = dict(x=track(t, KIT_X), e=track(t, KIT_E), walk=track(t, KIT_WALK), seed=7, shadow=shadow)
     if 61.8 < t < 64.5:
         kit["nod"] = math.sin(t * 9) * 0.8
         kit["tail"] = 2.0
@@ -597,6 +708,16 @@ def render(i):
         g = clamp((t - 47.5 - (k % 10) * 0.55) / 1.4)
         draw_flower(p, fx, fy, g, col, t)
 
+    # sparkles of joy around the friends
+    happy_amt = clamp((t - 44) / 2) * (1 - clamp((t - 56) / 1.5)) + clamp((t - 62) / 2)
+    if happy_amt > 0:
+        rnd = random.Random(21)
+        for k in range(22):
+            sx, sy = rnd.uniform(560, 1250), rnd.uniform(300, 600)
+            ph = rnd.uniform(0, 6.28)
+            tw = max(0, math.sin(t * 3 + ph))
+            sparkle(p, sx, sy, 7 * tw * happy_amt, (255, 250, 210))
+
     # hearts
     hearts_burst(p, t, 43.5, 47, boy_head[0], boy_head[1] - 40, 7, 11)
     hearts_burst(p, t, 49, 55.5, hero_head[0], hero_head[1] - 50, 9, 12)
@@ -622,6 +743,8 @@ def render(i):
     x0 = clamp(cx - cw / 2, 0, W - cw)
     y0 = clamp(cy - ch / 2, 0, H - ch)
     frame = img.resize((W, H), Image.LANCZOS, box=(x0 * SS, y0 * SS, (x0 + cw) * SS, (y0 + ch) * SS))
+
+    frame = grade(frame, t, dim, (1085 - x0) * z, (120 - y0) * z, z)
 
     # title & ending overlays (screen space)
     title_a = track(t, [(0, 0), (0.8, 1), (4.6, 1), (6.0, 0)])
